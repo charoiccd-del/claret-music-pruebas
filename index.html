@@ -93,10 +93,12 @@ function cmLibraryResults(){
  const target=document.getElementById('cm-lib-results');target.replaceChildren();
  found.slice(0,250).forEach(({song,book})=>{
  const link=document.createElement('a');link.className='song';link.style.cssText='display:block;text-decoration:none;color:inherit';
- link.href=cmLibraryBooks[book].file+'#page='+song.page;link.target='_blank';link.rel='noopener';
+ link.href='#';link.rel='noopener';
+ link.onclick=e=>{e.preventDefault();cmOpenPdf(cmLibraryBooks[book].file,song.page,song.title);};
  const title=document.createElement('strong');title.textContent=song.title;
  const note=document.createElement('div');note.className='muted';note.textContent=cmLibraryBooks[book].name+' · Página '+song.page;
  link.append(title,note);target.appendChild(link);
  });
 }
+function cmOpenPdf(file,page,title){const v=document.createElement('div');v.style.cssText='position:fixed;inset:0;background:white;z-index:9999;display:flex;flex-direction:column';v.innerHTML='<div style="padding:10px;display:flex;gap:10px;align-items:center"><button id="cmPdfBack" class="back">← Volver</button><strong style="flex:1">'+title+'</strong></div><iframe src="'+file+'#page='+page+'" style="width:100%;flex:1;border:0"></iframe>';document.body.appendChild(v);v.querySelector('#cmPdfBack').onclick=()=>v.remove();}
 </script></body></html>
