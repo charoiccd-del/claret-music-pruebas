@@ -9,7 +9,7 @@
   const isChordToken = token => {
     // Spanish and international notation, including joined chords (MI-SI7, do#m-LA).
     const note = '(?:DO|RE|MI|FA|SOL|LA|SI|[A-G])';
-    const one = note + '(?:#|b)?(?:maj|min|sus|dim|aug|add|m|M|º|°|[+])?(?:[0-9]+)?(?:/(?:[A-G](?:#|b)?|[0-9]+))?';
+    const one = note + '(?:#|b)?(?:maj|min|sus|dim|aug|add|m|M|º|°|[+])?(?:[-–—]?[0-9]+)?(?:/(?:[A-G](?:#|b)?|[0-9]+))?';
     return new RegExp('^(?:' + one + ')(?:[-–—](?:' + one + '))*(?:\\(' + note + '\\))?$', 'i').test(token);
   };
   const chordLine = line => {
