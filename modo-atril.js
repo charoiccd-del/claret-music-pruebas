@@ -112,11 +112,11 @@ function songList(){
 let current=null;
 function cmWordPages(lines,cols,rows){
   const grupos=[];
-  for(let i=0;i&lt;lines.length;i++){
+  for(let i=0;i<lines.length;i++){
     const actual=lines[i];
     const acorde=actual.red.some(v=>v===1);
-    if(acorde &amp;&amp; lines[i+1] &amp;&amp;
-       !lines[i+1].red.some(v=>v===1) &amp;&amp;
+    if(acorde && lines[i+1] &&
+   !lines[i+1].red.some(v=>v===1) &&
        lines[i+1].text.trim()){
       grupos.push([actual,lines[++i]]);
     }else{
@@ -126,7 +126,7 @@ function cmWordPages(lines,cols,rows){
   const bloques=[];
   grupos.forEach(grupo=>{
     const largo=Math.max(...grupo.map(l=>l.text.length));
-    for(let desde=0;desde&lt;Math.max(1,largo);desde+=cols){
+    for(let desde=0;desde<Math.max(1,largo);desde+=cols){
       bloques.push(grupo.map(l=>({
         text:l.text.slice(desde,desde+cols),
         red:l.red.slice(desde,desde+cols)
@@ -136,7 +136,7 @@ function cmWordPages(lines,cols,rows){
   const paginas=[];
   let pagina=[];
   bloques.forEach(bloque=>{
-    if(pagina.length &amp;&amp; pagina.length+bloque.length&gt;rows){
+    if(pagina.length && pagina.length+bloque.length>rows){
       paginas.push(pagina);
       pagina=[];
     }
