@@ -111,39 +111,79 @@ function songList(){
 
 let current=null;
 function cmWordPages(lines,cols,rows){
-  const grupos=[];
+  function hasChord(line){
+    return line.red.some(v=>v===1) && line.text.trim().length>0;
+  }
+  function canSplit(group,pos){
+    for(const line of group){
+      if(hasChord(line) && pos>0 && pos<line.text.length &&
+         line.red[pos-1] && line.red[pos] &&
+         line.text[pos-1]!=' ' && line.text[pos]!=' ') return false;
+    }
+    return true;
+  }
+  function splitGroup(group){
+    const len=Math.max(...group.map(line=>line.text.length));
+    if(len<=cols) return [group];
+    const result=[];
+    let start=0;
+    while(start<len){
+      let end=Math.min(len,start+cols);
+      if(end<len){
+        const lyric=group.find(line=>!hasChord(line));
+        let best=0;
+        for(let i=end;i>start+Math.floor(cols*.45);i--){
+          if(!canSplit(group,i)) continue;
+          if(!lyric || i>=lyric.text.length ||
+             /\s/.test(lyric.text[i]||'') ||
+             /\s/.test(lyric.text[i-1]||'')){
+            best=i;
+            break;
+          }
+        }
+        if(!best){
+          for(let i=end;i>start;i--){
+            if(canSplit(group,i)){best=i;break;}
+          }
+        }
+        if(!best){
+          for(let i=end+1;i<=len;i++){
+            if(canSplit(group,i)){best=i;break;}
+          }
+        }
+        if(best) end=best;
+      }
+      if(end<=start) end=len;
+      result.push(group.map(line=>({
+        text:line.text.slice(start,end),
+        red:line.red.slice(start,end)
+      })));
+      start=end;
+    }
+    return result;
+  }
+  const groups=[];
   for(let i=0;i<lines.length;i++){
-    const actual=lines[i];
-    const acorde=actual.red.some(v=>v===1);
-    if(acorde && lines[i+1] &&
-   !lines[i+1].red.some(v=>v===1) &&
-       lines[i+1].text.trim()){
-      grupos.push([actual,lines[++i]]);
+    const line=lines[i];
+    if(hasChord(line) && lines[i+1] &&
+       !hasChord(lines[i+1]) && lines[i+1].text.trim()){
+      groups.push([line,lines[++i]]);
     }else{
-      grupos.push([actual]);
+      groups.push([line]);
     }
   }
-  const bloques=[];
-  grupos.forEach(grupo=>{
-    const largo=Math.max(...grupo.map(l=>l.text.length));
-    for(let desde=0;desde<Math.max(1,largo);desde+=cols){
-      bloques.push(grupo.map(l=>({
-        text:l.text.slice(desde,desde+cols),
-        red:l.red.slice(desde,desde+cols)
-      })));
+  const blocks=groups.flatMap(splitGroup);
+  const pages=[];
+  let page=[];
+  for(const block of blocks){
+    if(page.length && page.length+block.length>rows){
+      pages.push(page);
+      page=[];
     }
-  });
-  const paginas=[];
-  let pagina=[];
-  bloques.forEach(bloque=>{
-    if(pagina.length && pagina.length+bloque.length>rows){
-      paginas.push(pagina);
-      pagina=[];
-    }
-    pagina.push(...bloque);
-  });
-  if(pagina.length || !paginas.length)paginas.push(pagina);
-  return paginas;
+    page.push(...block);
+  }
+  if(page.length || !pages.length) pages.push(page);
+  return pages;
 }
 function cmWordSpans(line){
   const partes=[];
