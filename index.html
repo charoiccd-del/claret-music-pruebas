@@ -173,5 +173,26 @@ cmRenderRead = function () {
     panel.appendChild(boton);
   });
 };
-
+// Incorporar las 413 canciones del Word Espíritu Santo
+fetch('Prueba_413_Canciones.html')
+  .then(res => {
+    if (!res.ok) throw new Error('No se pudo cargar el Word');
+    return res.text();
+  })
+  .then(html => {
+    const inicio = html.indexOf('const songs=') + 12;
+    const fin = html.indexOf('];\nlet idx=', inicio) + 1;
+    if (inicio < 12 || fin === 0) throw new Error('Formato no reconocido');
+    const cancionesWord = JSON.parse(html.slice(inicio, fin));
+    cancionesWord.forEach(canto => {
+      songs.push({
+        title: canto.title + ' · Espíritu Santo (Word)',
+        body: canto.lines.map(linea => linea.text).join('\n'),
+        cmWord: true
+      });
+    });
+    if (typeof cmUpdateSearch === 'function') cmUpdateSearch();
+    render();
+  })
+  .catch(err => console.error('Cancionero Word:', err));
 render();</script><script src="modo-atril.js"></script></body></html>
