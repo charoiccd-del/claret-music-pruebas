@@ -188,7 +188,8 @@ fetch('Prueba_413_Canciones.html')
       songs.push({
         title: canto.title + ' · Espíritu Santo (Word)',
         body: canto.lines.map(linea => linea.text).join('\n'),
-        cmWord: true
+        cmWord: true,
+cmWordLines: canto.lines
       });
     });
     if (typeof cmUpdateSearch === 'function') cmUpdateSearch();
