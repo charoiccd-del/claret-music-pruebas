@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prueba Word · Claret Music</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#fff9ef;color:#302825;font-family:Arial,sans-serif}
+header{padding:15px;background:#922d38;color:white;text-align:center}
+h2{font-size:19px;margin:0 0 7px}
+nav{display:flex;gap:7px;padding:12px;flex-wrap:wrap}
+select,button{padding:11px;border-radius:9px;border:1px solid #bd9d9f;background:white;font-size:15px}
+select{flex:1;min-width:150px}
+main{padding:15px;overflow:auto}
+#music{font-family:monospace;font-size:16px;line-height:1.65;white-space:pre;overflow:auto;padding:12px;background:white;border-radius:12px}
+.chord{color:#c22934;font-weight:bold}
+footer{padding:12px;text-align:center;color:#746565;font-size:12px}
+</style>
+</head>
+<body>
+<header><h2>🎸 Cancionero Espíritu Santo</h2>Prueba independiente desde Word</header>
+<nav><select id="song"></select><button onclick="zoom(-2)">A−</button><button onclick="zoom(2)">A+</button></nav>
+<main><div id="music"></div></main>
+<footer>Comprueba la posición de los acordes al aumentar la letra.</footer>
+<script>
+const songs=[
+{title:"ALMA MISIONERA",lines:[
+["MI      SI7                    do#","Señor, toma mi vida nueva,"],
+["LA                      MI","antes de que la espera"],
+["fa#                     SI7","desgaste años en mí."],
+["MI      SI7                    do#","Estoy dispuesto a lo que quieras,"],
+["LA                      MI","no importa lo que sea,"],
+["fa#        SI7   MI     SI7","Tú llámame a servir."],
+["MI                  SI7","Llévame donde los hombres"],
+["do#                  LA","necesiten tus palabras,"]]},
+{title:"BENDIGAMOS AL SEÑOR",lines:[
+["MI","Bendigamos al Señor,"],
+["do#","Dios de toda la creación,"],
+["LA       fa#          SI7","por habernos regalado su amor,"],
+["MI","su bondad y su perdón,"],
+["do#","y su gran fidelidad"],
+["LA             SI7        MI","por los siglos de los siglos durarán."]]},
+{title:"A BELÉN PASTORES",lines:[
+["DO","A Belén pastores,"],
+["","a Belén chiquillos,"],
+["    FA","que ha nacido el rey"],
+["    SOL    DO","de los angelitos. (bis)"]]}
+];
+let size=16;
+const select=document.getElementById("song");
+const music=document.getElementById("music");
+songs.forEach((s,i)=>select.add(new Option(s.title,i)));
+function render(){
+ music.style.fontSize=size+"px";
+ music.replaceChildren();
+ songs[select.value].lines.forEach(([chords,lyric])=>{
+  const line=document.createElement("div");
+  const top=document.createElement("div");
+  top.className="chord";
+  top.textContent=chords||" ";
+  const bottom=document.createElement("div");
+  bottom.textContent=lyric;
+  line.append(top,bottom);
+  music.appendChild(line);
+ });
+}
+function zoom(n){size=Math.min(26,Math.max(12,size+n));render()}
+select.onchange=render;
+render();
+</script>
+</body>
+</html>
