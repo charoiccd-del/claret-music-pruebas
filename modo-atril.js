@@ -14,7 +14,7 @@ const chordUnit='(?:SOL|DO|RE|MI|FA|LA|SI|[A-G])(?:#|b)?(?:maj|min|sus|dim|aug|a
 const chordRE=new RegExp('^'+chordUnit+'$','i');
 
 function isChord(t){
- t=norm(t).replace(/^[,;:.]+|[,;:.]+$/g,'');
+ t=norm(t).replace(/^[,;:.]+|[,;:.]+$/g,'').replace(/^\((.*)\)$/,'$1');
  if(!t)return false;
  const parts=t.replace(/^-/,'').split(/-(?=(?:SOL|DO|RE|MI|FA|LA|SI|[A-G]))/i);
  return parts.length>0&&parts.every(x=>chordRE.test(x));
