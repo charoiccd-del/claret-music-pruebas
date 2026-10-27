@@ -1,139 +1,302 @@
-/* Claret Music · Modo atril: corrección general de acordes y distribución. */
+
+/* Claret Music - Modo atril: alineación general */
 (function () {
-  'use strict';
-  window.cmAtrilVersion = 4;
-  const red = '#b9212b';
-  const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let state = null;
-  const note = '(?:DO|RE|MI|FA|SOL|LA|SI|[A-G])';
-  const one = note + '(?:#|b)?(?:maj|min|sus|dim|aug|add|m|M|º|°|[+])?(?:-?[0-9]+)?(?:/(?:' + note + '|[0-9]+))?';
-  const chordRE = new RegExp('^(?:' + one + ')(?:-(?:' + one + '))*(?:\\(' + note + '\\))?$', 'i');
-  function normalize(s) { return s.replace(/[‐‑‒–—−]/g, '-'); }
-  function isChordToken(raw) {
-    let s = normalize(raw.trim());
-    if (s[0] === '(' && s[s.length - 1] === ')') s = s.slice(1,-1);
-    return !!s && chordRE.test(s);
+'use strict';
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({
+'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+
+const norm=s=>s.replace(/[‐-‒–—−]/g,'-');
+
+const chordUnit='(?:SOL|DO|RE|MI|FA|LA|SI|[A-G])(?:#|b)?(?:maj|min|sus|dim|aug|add|m|M|º|°|\\+)?(?:-?[0-9]+)?(?:\\((?:SOL|DO|RE|MI|FA|LA|SI|[A-G]|[0-9]+)\\))?(?:\\/(?:SOL|DO|RE|MI|FA|LA|SI|[A-G]|[0-9]+))?';
+
+const chordRE=new RegExp('^'+chordUnit+'$','i');
+
+function isChord(t){
+ t=norm(t).replace(/^[,;:.]+|[,;:.]+$/g,'');
+ if(!t)return false;
+ const parts=t.replace(/^-/,'').split(/-(?=(?:SOL|DO|RE|MI|FA|LA|SI|[A-G]))/i);
+ return parts.length>0&&parts.every(x=>chordRE.test(x));
+}
+
+function rowChord(t){
+ const a=t.trim().split(/\s+/).filter(Boolean);
+ const hits=a.filter(isChord).length;
+ return hits>0&&(hits===a.length||(hits/a.length>=.65&&hits>=2));
+}
+
+function chordSpans(t){
+ return(t.match(/\s+|\S+/g)||[]).map(s=>({
+  text:s,chord:!/^\s+$/.test(s)&&isChord(s)
+ }));
+}
+
+function makeBlocks(body){
+ const lines=String(body||'').replace(/\r/g,'').split('\n');
+ const out=[];
+ for(let i=0;i<lines.length;i++){
+  const a=lines[i];
+  if(rowChord(a)&&lines[i+1]&&lines[i+1].trim()&&!rowChord(lines[i+1])){
+   out.push([{text:a,chord:true},{text:lines[++i],chord:false}]);
+  }else{
+   out.push([{text:a,chord:rowChord(a)}]);
   }
-  function chordLine(line) {
-    const tokens = String(line).trim().split(/\s+/).filter(Boolean);
-    return tokens.length > 0 && tokens.every(isChordToken);
-  }
-  function getSongs() {
-    if (typeof cmReadonly === 'undefined' || !cmReadonly || !Array.isArray(cmReadonly.entries) || typeof songs === 'undefined') return [];
-    return cmReadonly.entries.map(x => ({moment:x.moment || '', song:songs[x.song]})).filter(x => x.song);
-  }
-  // Split two aligned lines ONLY at a shared character boundary. Never cut through a chord.
-  function pairRows(chords, lyric, columns) {
-    const out=[], len=Math.max(chords.length,lyric.length);
-    let start=0;
-    while(start<len) {
-      const nominal=Math.min(start+columns,len);
-      let end=nominal;
-      if (end<len) {
-        const min=Math.min(start+Math.max(4,Math.floor(columns*.55)),nominal);
-        // Prefer a word boundary in the lyric, but never cross a chord token.
-        for(let k=nominal;k>=min;k--) {
-          if (lyric[k-1] !== ' ' && lyric[k] !== ' ') continue;
-          if (splitsChord(chords,k)) continue;
-          end=k;break;
-        }
-        if(splitsChord(chords,end)) {
-          let k=end;
-          while(k>start+1 && splitsChord(chords,k)) k--;
-          if(k>start+1) end=k;
-          else {
-            k=end;while(k<len && splitsChord(chords,k)) k++;
-            end=k;
-          }
-        }
-      }
-      if(end<=start) end=Math.min(start+columns,len);
-      out.push([{text:chords.slice(start,end),chord:true},{text:lyric.slice(start,end),chord:false}]);
-      start=end;
+ }
+ return out;
+}
+
+function safeBreak(block,pos){
+ const c=block.find(x=>x.chord)?.text||'';
+ return !(pos>0&&pos<c.length&&!/\s/.test(c[pos-1])&&!/\s/.test(c[pos]));
+}
+
+function chunks(block,cols){
+ const len=Math.max(...block.map(x=>x.text.length));
+ if(!len)return[block];
+ const res=[];
+ let s=0;
+ while(s<len){
+  let e=Math.min(len,s+cols);
+  if(e<len){
+   let found=0;
+   const lyric=block.find(x=>!x.chord)?.text||'';
+   for(let p=e;p>=s+Math.floor(cols*.4);p--){
+    if(safeBreak(block,p)&&(p>=lyric.length||p===0||/\s/.test(lyric[p-1])||/\s/.test(lyric[p]))){
+     found=p;break;
     }
-    return out.length?out:[[{text:' ',chord:false}]];
-  }
-  function splitsChord(s,at) { return at>0 && at<s.length && !/\s/.test(s[at-1]) && !/\s/.test(s[at]); }
-  function loneRows(line,columns,chord) {
-    if(!line.length) return [[{text:' ',chord:false}]];
-    const result=[];
-    let start=0;
-    while(start<line.length) {
-      let end=Math.min(start+columns,line.length);
-      if(end<line.length) {
-        const min=start+Math.floor(columns*.50);
-        let cut=-1;
-        for(let i=end;i>min;i--) if(/\s/.test(line[i-1])) {cut=i;break;}
-        if(cut>start) end=cut;
-        // For one uninterrupted sequence of joined chords, break at a hyphen.
-        else if(chord) for(let i=end;i>min;i--) if(/[‐‑‒–—−-]/.test(line[i-1])) {end=i;break;}
-      }
-      result.push([{text:line.slice(start,end),chord}]);
-      start=end;
+   }
+   if(!found){
+    for(let p=e;p>s;p--){
+     if(safeBreak(block,p)){found=p;break;}
     }
-    return result;
-  }
-  function rows(body,columns) {
-    const lines=String(body || 'Letra no disponible').replace(/\r/g,'').split('\n');
-    const result=[];
-    for(let i=0;i<lines.length;i++) {
-      const a=lines[i], aChord=chordLine(a);
-      if(aChord && i+1<lines.length && lines[i+1].trim() && !chordLine(lines[i+1])) {
-        result.push(...pairRows(a,lines[++i],columns));
-      } else result.push(...loneRows(a,columns,aChord));
+   }
+   if(!found){
+    for(let p=e+1;p<=len;p++){
+     if(safeBreak(block,p)){found=p;break;}
     }
-    return result;
+   }
+   if(found)e=found;
   }
-  function paginate(groups,maxLines) {
-    const pages=[];let cur=[],count=0;
-    for(const g of groups) {
-      if(cur.length && count+g.length>maxLines) {pages.push(cur);cur=[];count=0;}
-      cur.push(...g);count+=g.length;
-    }
-    if(cur.length || !pages.length) pages.push(cur);
-    return pages;
+  if(e<=s)e=len;
+  res.push(block.map(x=>({text:x.text.slice(s,e),chord:x.chord})));
+  s=e;
+ }
+ return res;
+}
+
+function paged(body,cols,rows){
+ const result=[];
+ const blocks=makeBlocks(body).flatMap(b=>chunks(b,cols));
+ let page=[],n=0;
+ for(const block of blocks){
+  if(n&&n+block.length>rows){
+   result.push(page);
+   page=[];n=0;
   }
-  function getData() {
-    const entry=getSongs()[state.songIndex];if(!entry)return null;
-    const panel=document.getElementById('cm-at-panel');
-    const width=Math.max(230,panel?.clientWidth || window.innerWidth);
-    const height=Math.max(280,panel?.clientHeight || window.innerHeight);
-    const size=state.size;
-    const columns=Math.max(15,Math.floor((width-36)/(size*.615)));
-    const maxLines=Math.max(4,Math.floor((height-166)/(size*1.43)));
-    return {entry,pages:paginate(rows(entry.song.body,columns),maxLines)};
+  page.push(...block);
+  n+=block.length;
+ }
+ if(page.length||!result.length)result.push(page);
+ return result;
+}
+
+function songList(){
+ if(typeof cmReadonly==='undefined'||!cmReadonly||
+    !Array.isArray(cmReadonly.entries)||typeof songs==='undefined')return[];
+ return cmReadonly.entries.map(x=>({
+  moment:x.moment||'',song:songs[x.song]
+ })).filter(x=>x.song);
+}
+
+let current=null;
+
+function getPages(){
+ const selected=songList()[current.song];
+ const paper=document.getElementById('cm-at-page');
+ if(!selected||!paper)return null;
+ const cols=Math.max(12,Math.floor(
+  (paper.clientWidth-16)/(current.size*.605)
+ ));
+ const rows=Math.max(4,Math.floor(
+  (paper.clientHeight-12)/(current.size*1.4)
+ ));
+ return{selected,pages:paged(selected.song.body,cols,rows)};
+}
+
+function draw(){
+ if(!current)return;
+ const d=getPages();
+ if(!d)return;
+ current.page=Math.min(current.page,d.pages.length-1);
+
+ document.getElementById('cm-at-list').innerHTML=
+  songList().map((s,i)=>
+   '<option value="'+i+'"'+
+   (i===current.song?' selected':'')+'>'+
+   esc(s.song.title)+'</option>'
+  ).join('');
+
+ document.getElementById('cm-at-title').textContent=
+  (d.selected.moment?d.selected.moment+' · ':'')+
+  d.selected.song.title;
+
+ const paper=document.getElementById('cm-at-page');
+ paper.style.fontSize=current.size+'px';
+ paper.replaceChildren();
+
+ for(const line of d.pages[current.page]){
+  const div=document.createElement('div');
+  div.className='cm-at-line';
+  for(const segment of chordSpans(line.text)){
+   const span=document.createElement('span');
+   span.textContent=segment.text;
+   if(line.chord&&segment.chord)span.className='cm-at-chord';
+   div.appendChild(span);
   }
-  function draw() {
-    if(!state)return;
-    const panel=document.getElementById('cm-at-panel'),d=getData();if(!panel||!d)return;
-    state.page=Math.min(state.page,d.pages.length-1);
-    const options=getSongs().map((x,i)=>'<option value="'+i+'"'+(state.songIndex===i?' selected':'')+'>'+esc(x.song.title)+'</option>').join('');
-    panel.innerHTML='<div class="cm-at-top"><button type="button" onclick="cmAtrilClose()">✕ Salir</button><select aria-label="Elegir canción" onchange="cmAtrilSong(Number(this.value))">'+options+'</select><button type="button" onclick="cmAtrilSize(-2)">A−</button><button type="button" onclick="cmAtrilSize(2)">A+</button></div>'+
-      '<div class="cm-at-heading">'+esc(d.entry.moment)+' · '+esc(d.entry.song.title)+'</div>'+
-      '<div class="cm-at-page" style="font-size:'+state.size+'px">'+d.pages[state.page].map(line=>'<div class="cm-at-line'+(line.chord?' cm-at-chord':'')+'">'+(line.text?esc(line.text):'&nbsp;')+'</div>').join('')+'</div>'+
-      '<div class="cm-at-bottom"><button type="button" onclick="cmAtrilPrev()"'+(state.page===0 && state.songIndex===0?' disabled':'')+'>← Anterior</button><span>'+(state.page+1)+' / '+d.pages.length+'</span><button type="button" onclick="cmAtrilNext()"'+(state.songIndex===getSongs().length-1&&state.page===d.pages.length-1?' disabled':'')+'>Siguiente →</button></div>';
+  paper.appendChild(div);
+ }
+
+ document.getElementById('cm-at-count').textContent=
+  (current.page+1)+' / '+d.pages.length;
+}
+
+window.cmAtrilClose=function(){
+ current=null;
+ document.getElementById('cm-at-panel')?.remove();
+};
+
+window.cmAtrilOpen=function(index=0){
+ const all=songList();
+ if(!all.length){
+  alert('Abre primero una celebración compartida.');
+  return;
+ }
+
+ document.getElementById('cm-at-panel')?.remove();
+ current={
+  song:Math.max(0,Math.min(all.length-1,Number(index)||0)),
+  page:0,size:18
+ };
+
+ const panel=document.createElement('section');
+ panel.id='cm-at-panel';
+ panel.innerHTML=
+  '<header>'+
+  '<button id="cm-at-close">✕ Salir</button>'+
+  '<select id="cm-at-list" aria-label="Elegir canción"></select>'+
+  '<button id="cm-at-smaller">A−</button>'+
+  '<button id="cm-at-bigger">A+</button>'+
+  '</header>'+
+  '<strong id="cm-at-title"></strong>'+
+  '<main id="cm-at-page"></main>'+
+  '<footer>'+
+  '<button id="cm-at-prev">← Anterior</button>'+
+  '<span id="cm-at-count"></span>'+
+  '<button id="cm-at-next">Siguiente →</button>'+
+  '</footer>';
+
+ document.body.appendChild(panel);
+
+ document.getElementById('cm-at-close').onclick=window.cmAtrilClose;
+
+ document.getElementById('cm-at-list').onchange=e=>{
+  current.song=Number(e.target.value);
+  current.page=0;draw();
+ };
+
+ document.getElementById('cm-at-smaller').onclick=()=>{
+  current.size=Math.max(12,current.size-2);
+  current.page=0;draw();
+ };
+
+ document.getElementById('cm-at-bigger').onclick=()=>{
+  current.size=Math.min(28,current.size+2);
+  current.page=0;draw();
+ };
+
+ document.getElementById('cm-at-next').onclick=()=>{
+  const d=getPages();
+  if(current.page<d.pages.length-1)current.page++;
+  else if(current.song<songList().length-1){
+   current.song++;current.page=0;
   }
-  window.cmAtrilOpen=function(index){
-    const all=getSongs();if(!all.length){alert('Abre primero una celebración compartida.');return;}
-    document.getElementById('cm-at-panel')?.remove();
-    const idx=Number(index);state={songIndex:Number.isInteger(idx)&&idx>=0&&idx<all.length?idx:0,page:0,size:20};
-    const panel=document.createElement('div');panel.id='cm-at-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Modo atril');document.body.appendChild(panel);draw();
-  };
-  window.cmAtrilClose=function(){state=null;document.getElementById('cm-at-panel')?.remove()};
-  window.cmAtrilSong=function(i){if(!state)return;state.songIndex=i;state.page=0;draw()};
-  window.cmAtrilSize=function(delta){if(!state)return;state.size=Math.max(14,Math.min(28,state.size+delta));state.page=0;draw()};
-  window.cmAtrilNext=function(){if(!state)return;const d=getData();if(state.page<d.pages.length-1)state.page++;else if(state.songIndex<getSongs().length-1){state.songIndex++;state.page=0}draw()};
-  window.cmAtrilPrev=function(){if(!state)return;if(state.page>0)state.page--;else if(state.songIndex>0){state.songIndex--;state.page=getData().pages.length-1}draw()};
-  document.getElementById('cm-at-style')?.remove();
-  const style=document.createElement('style');style.id='cm-at-style';style.textContent=`#cm-at-panel{box-sizing:border-box;position:fixed;inset:0;z-index:2147483600;background:#fffaf0;color:#252525;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 8px env(safe-area-inset-bottom);font-family:system-ui,sans-serif}#cm-at-panel *{box-sizing:border-box}#cm-at-panel .cm-at-top{display:flex;gap:5px;align-items:center;padding:7px 2px;flex-shrink:0}#cm-at-panel button,#cm-at-panel select{border:1px solid #dec2b8;background:white;border-radius:9px;padding:9px 6px;color:#7c222b;font-size:13px}#cm-at-panel button:disabled{opacity:.35}#cm-at-panel select{flex:1;min-width:0;max-width:100%}#cm-at-panel .cm-at-heading{text-align:center;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}#cm-at-panel .cm-at-page{flex:1;min-height:0;overflow:hidden;padding:12px 9px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.43}#cm-at-panel .cm-at-line{white-space:pre;height:1.43em}#cm-at-panel .cm-at-chord{color:${red};font-weight:700}#cm-at-panel .cm-at-bottom{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 2px}#cm-at-panel .cm-at-bottom button{flex:1}#cm-at-panel .cm-at-bottom span{font-size:12px;white-space:nowrap}`;document.head.appendChild(style);
-  function addButton(){
-    if(typeof cmReadonly==='undefined'||!cmReadonly)return;
-    const actions=document.querySelector('.cm-read + .cm-actions');
-    if(!actions||document.getElementById('cm-at-button'))return;
-    const button=document.createElement('button');button.id='cm-at-button';button.type='button';button.textContent='🎸 Modo atril';button.onclick=()=>window.cmAtrilOpen(0);actions.appendChild(button);
+  draw();
+ };
+
+ document.getElementById('cm-at-prev').onclick=()=>{
+  if(current.page>0)current.page--;
+  else if(current.song>0){
+   current.song--;
+   current.page=0;
+   draw();
+   current.page=getPages().pages.length-1;
   }
-  if(typeof cmRenderRead==='function'){
-    const original=cmRenderRead;cmRenderRead=function(){original();addButton()};
-  }
-  addButton();window.addEventListener('resize',()=>{if(state)draw()});
+  draw();
+ };
+
+ draw();
+};
+
+const css=document.createElement('style');
+css.id='cm-at-style-v8';
+css.textContent=`
+#cm-at-panel{
+ position:fixed;inset:0;z-index:2147483600;
+ background:#fffaf0;color:#252525;
+ display:flex;flex-direction:column;
+ box-sizing:border-box;
+ padding:env(safe-area-inset-top) 10px env(safe-area-inset-bottom);
+ font-family:system-ui,sans-serif
+}
+#cm-at-panel *{box-sizing:border-box}
+#cm-at-panel header,#cm-at-panel footer{
+ display:flex;align-items:center;gap:6px;
+ padding:8px 0;flex-shrink:0
+}
+#cm-at-panel button,#cm-at-panel select{
+ background:white;border:1px solid #d9aca9;
+ border-radius:8px;color:#88242d;
+ padding:9px 6px;font-size:13px
+}
+#cm-at-panel select{flex:1;min-width:0}
+#cm-at-title{text-align:center;font-size:13px}
+#cm-at-page{
+ flex:1;min-height:0;overflow:hidden;padding:12px 8px;
+ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+ line-height:1.4
+}
+#cm-at-page .cm-at-line{
+ white-space:pre;min-height:1.4em
+}
+#cm-at-page .cm-at-chord{
+ color:#b9212b;font-weight:700
+}
+#cm-at-panel footer button{flex:1}
+#cm-at-count{white-space:nowrap;font-size:12px}
+`;
+document.head.appendChild(css);
+
+function addButton(){
+ if(typeof cmReadonly==='undefined'||!cmReadonly)return;
+ const actions=document.querySelector('.cm-read + .cm-actions');
+ if(!actions||document.getElementById('cm-at-button'))return;
+ const b=document.createElement('button');
+ b.id='cm-at-button';
+ b.type='button';
+ b.textContent='🎸 Modo atril';
+ b.onclick=()=>window.cmAtrilOpen(0);
+ actions.appendChild(b);
+}
+
+if(typeof cmRenderRead==='function'){
+ const original=cmRenderRead;
+ cmRenderRead=function(){
+  original();
+  addButton();
+ };
+}
+
+addButton();
+window.addEventListener('resize',()=>{if(current)draw();});
 })();
