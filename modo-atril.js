@@ -110,8 +110,57 @@ function songList(){
 }
 
 let current=null;
-
-function getPages(){
+function cmWordPages(lines,cols,rows){
+  const grupos=[];
+  for(let i=0;i&lt;lines.length;i++){
+    const actual=lines[i];
+    const acorde=actual.red.some(v=>v===1);
+    if(acorde &amp;&amp; lines[i+1] &amp;&amp;
+       !lines[i+1].red.some(v=>v===1) &amp;&amp;
+       lines[i+1].text.trim()){
+      grupos.push([actual,lines[++i]]);
+    }else{
+      grupos.push([actual]);
+    }
+  }
+  const bloques=[];
+  grupos.forEach(grupo=>{
+    const largo=Math.max(...grupo.map(l=>l.text.length));
+    for(let desde=0;desde&lt;Math.max(1,largo);desde+=cols){
+      bloques.push(grupo.map(l=>({
+        text:l.text.slice(desde,desde+cols),
+        red:l.red.slice(desde,desde+cols)
+      })));
+    }
+  });
+  const paginas=[];
+  let pagina=[];
+  bloques.forEach(bloque=>{
+    if(pagina.length &amp;&amp; pagina.length+bloque.length&gt;rows){
+      paginas.push(pagina);
+      pagina=[];
+    }
+    pagina.push(...bloque);
+  });
+  if(pagina.length || !paginas.length)paginas.push(pagina);
+  return paginas;
+}
+function cmWordSpans(line){
+  const partes=[];
+  let texto='', rojo=null;
+  for(let i=0;i<line.text.length;i++){
+    const esRojo=Boolean(line.red[i]);
+    if(rojo!==null && esRojo!==rojo){
+      partes.push({text:texto,chord:rojo});
+      texto='';
+    }
+    rojo=esRojo;
+    texto+=line.text[i];
+  }
+  if(texto)partes.push({text:texto,chord:rojo});
+  return partes;
+}
+ function getPages(){
  const selected=songList()[current.song];
  const paper=document.getElementById('cm-at-page');
  if(!selected||!paper)return null;
@@ -121,7 +170,10 @@ function getPages(){
  const rows=Math.max(4,Math.floor(
   (paper.clientHeight-12)/(current.size*1.4)
  ));
- return{selected,pages:paged(selected.song.body,cols,rows)};
+ const pages = selected.song.cmWordLines
+  ? cmWordPages(selected.song.cmWordLines,cols,rows)
+  : paged(selected.song.body,cols,rows);
+return {selected,pages};
 }
 
 function draw(){
@@ -148,10 +200,10 @@ function draw(){
  for(const line of d.pages[current.page]){
   const div=document.createElement('div');
   div.className='cm-at-line';
-  for(const segment of chordSpans(line.text)){
+  for(const segment of (d.selected.song.cmWordLines ? cmWordSpans(line) : chordSpans(line.text))){
    const span=document.createElement('span');
    span.textContent=segment.text;
-   if(line.chord&&segment.chord)span.className='cm-at-chord';
+   if(d.selected.song.cmWordLines ? segment.chord : (line.chord&&segment.chord))span.className='cm-at-chord';
    div.appendChild(span);
   }
   paper.appendChild(div);
