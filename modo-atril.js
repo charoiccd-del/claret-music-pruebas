@@ -653,3 +653,28 @@ window.addEventListener('resize',()=>{if(current)draw();});
     filas.forEach(fila => lista.appendChild(fila));
   };
 })();
+/* Ocultar el tipo de archivo en los resultados */
+(function () {
+  const listarAntes = renderList;
+
+  renderList = function () {
+    listarAntes();
+
+    document.querySelectorAll('#list .song .open').forEach(boton => {
+      boton.childNodes.forEach(nodo => {
+        if (nodo.nodeType === 3) {
+          nodo.textContent = nodo.textContent.replace(
+            /\s*\((PDF|Word)\)/gi, ''
+          );
+        }
+      });
+
+      const detalle = boton.querySelector('.muted');
+      if (detalle) {
+        detalle.textContent = detalle.textContent.replace(
+          'Abrir PDF', 'Ver canción'
+        );
+      }
+    });
+  };
+})();
