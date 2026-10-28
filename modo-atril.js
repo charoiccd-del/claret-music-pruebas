@@ -957,3 +957,125 @@ searchNow = function (texto) {
 
   renderList();
 };
+/* Mostrar también los cancioneros con letras y acordes */
+cmLibraryRender = function () {
+  document.querySelectorAll('.nav button').forEach(b =>
+    b.classList.remove('active')
+  );
+
+  main.innerHTML = `
+    <button class="back" onclick="show('home')">← Inicio</button>
+    <h2>Cancioneros</h2>
+    <p class="hint">Elige un cancionero o busca una canción.</p>
+    <input id="cm-lib-query" class="search"
+      placeholder="Buscar canción…" aria-label="Buscar canción">
+    <select id="cm-lib-book" class="search"
+      aria-label="Elegir cancionero"></select>
+    <p id="cm-lib-count" class="hint"></p>
+    <div id="cm-lib-results"></div>
+  `;
+
+  const selector = document.getElementById('cm-lib-book');
+  const opciones = [
+    ['all', 'Todos los cancioneros'],
+    ['claretiano', 'Cancionero Claretiano'],
+    ['espiritu', 'Espíritu Santo'],
+    ...cmLibraryBooks.map((libro, i) => [String(i), libro.name])
+  ];
+
+  opciones.forEach(([valor, nombre]) => {
+    const opcion = document.createElement('option');
+    opcion.value = valor;
+    opcion.textContent = nombre;
+    selector.appendChild(opcion);
+  });
+
+  if (!opciones.some(([valor]) => valor === String(cmLibraryFilter))) {
+    cmLibraryFilter = 'all';
+  }
+
+  selector.value = cmLibraryFilter;
+  const campo = document.getElementById('cm-lib-query');
+  campo.value = cmLibraryQuery;
+
+  campo.oninput = () => {
+    cmLibraryQuery = campo.value;
+    cmLibraryResults();
+  };
+
+  selector.onchange = () => {
+    cmLibraryFilter = selector.value;
+    cmLibraryResults();
+  };
+
+  cmLibraryResults();
+  window.scrollTo(0, 0);
+};
+
+cmLibraryResults = function () {
+  const resultados = [];
+  const filtro = String(cmLibraryFilter);
+  const consulta = cmLibraryNorm(cmLibraryQuery);
+
+  songs.forEach((canto, indice) => {
+    if (canto.cmPdf) return;
+
+    const grupo = canto.cmWord ? 'espiritu' : 'claretiano';
+    if (filtro !== 'all' && filtro !== grupo) return;
+    if (!cmLibraryNorm(canto.title).includes(consulta)) return;
+
+    resultados.push({
+      titulo: canto.title.replace(/\s*\((PDF|Word)\)/gi, ''),
+      detalle: canto.cmWord
+        ? 'Espíritu Santo'
+        : 'Cancionero Claretiano',
+      orden: canto.cmWord ? 1 : 0,
+      abrir: () => openSong(indice)
+    });
+  });
+
+  cmLibraryBooks.forEach((libro, i) => {
+    if (libro.file === 'Cancionero_Espiritu_Santo_Claret_Music_OK.pdf') {
+      return;
+    }
+    if (filtro !== 'all' && filtro !== String(i)) return;
+
+    libro.songs.forEach(canto => {
+      if (!cmLibraryNorm(canto.title).includes(consulta)) return;
+
+      resultados.push({
+        titulo: canto.title,
+        detalle: libro.name + ' · Página ' + canto.page,
+        orden: /hakuna/i.test(libro.name) ? 2 : 3,
+        abrir: () => cmOpenPdf(libro.file, canto.page, canto.title)
+      });
+    });
+  });
+
+  resultados.sort((a, b) => a.orden - b.orden);
+
+  document.getElementById('cm-lib-count').textContent =
+    resultados.length + ' canciones encontradas' +
+    (resultados.length > 250 ? ' · Mostrando las primeras 250' : '');
+
+  const lista = document.getElementById('cm-lib-results');
+  lista.replaceChildren();
+
+  resultados.slice(0, 250).forEach(resultado => {
+    const fila = document.createElement('div');
+    fila.className = 'song';
+
+    const boton = document.createElement('button');
+    boton.className = 'open';
+    boton.textContent = resultado.titulo;
+    boton.onclick = resultado.abrir;
+
+    const detalle = document.createElement('div');
+    detalle.className = 'muted';
+    detalle.textContent = resultado.detalle;
+
+    boton.appendChild(detalle);
+    fila.appendChild(boton);
+    lista.appendChild(fila);
+  });
+};
