@@ -927,3 +927,33 @@ cmUpdateSearch = function () {
     cargar();
   };
 })();
+/* Buscar seguido sin perder el cursor */
+searchNow = function (texto) {
+  const campo = main.querySelector('input.search');
+  if (!campo) return;
+
+  mode = 'songs';
+  current = -1;
+  query = texto;
+
+  if (!main.querySelector('#list')) {
+    [...main.children].forEach(elemento => {
+      if (elemento !== campo) elemento.remove();
+    });
+
+    const titulo = document.createElement('h2');
+    titulo.textContent = 'Canciones';
+    campo.before(titulo);
+
+    const lista = document.createElement('div');
+    lista.id = 'list';
+    campo.after(lista);
+
+    document.querySelectorAll('.nav button').forEach(boton =>
+      boton.classList.remove('active')
+    );
+    document.getElementById('n-songs')?.classList.add('active');
+  }
+
+  renderList();
+};
