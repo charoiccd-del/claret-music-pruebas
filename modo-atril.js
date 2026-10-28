@@ -392,3 +392,165 @@ if(typeof cmRenderRead==='function'){
 addButton();
 window.addEventListener('resize',()=>{if(current)draw();});
 })();
+/* Abrir directamente la canción en el atril corregido */
+(function () {
+  'use strict';
+
+  const anterior = render;
+  let panel = null, elegida = -1, desplazamiento = '';
+
+  function cerrar() {
+    if (!panel) return;
+    panel.remove();
+    panel = null;
+    elegida = -1;
+    document.body.style.overflow = desplazamiento;
+  }
+
+  function preparar(canto) {
+    const unidad = '(?:SOL|DO|RE|MI|FA|LA|SI|[A-G])(?:#|b)?(?:maj|min|sus|dim|aug|add|m|M|º|°|\\+)?(?:-?[0-9]+)?(?:\\((?:SOL|DO|RE|MI|FA|LA|SI|[A-G]|[0-9]+)\\))?(?:\\/(?:SOL|DO|RE|MI|FA|LA|SI|[A-G]|[0-9]+))?';
+    const acorde = new RegExp('^' + unidad + '$', 'i');
+
+    return String(canto.body || '')
+      .replace(/\r/g, '')
+      .split('\n')
+      .map(text => {
+        const trozos = text.trim().split(/\s+/).filter(Boolean);
+        const rojo = trozos.length > 0 && trozos.every(t =>
+          t.replace(/[‐-‒–—−]/g, '-')
+            .replace(/^[,;:.]+|[,;:.]+$/g, '')
+            .replace(/^\((.*)\)$/, '$1')
+            .replace(/^-/, '')
+            .split(/-(?=(?:SOL|DO|RE|MI|FA|LA|SI|[A-G]))/i)
+            .every(p => acorde.test(p))
+        );
+        return {
+          text,
+          red: Array(text.length).fill(rojo ? 1 : 0)
+        };
+      });
+  }
+
+  function iniciar(datos, corregir) {
+    const estilo = document.createElement('style');
+    estilo.textContent = 'header,.note{display:none!important}';
+    document.head.appendChild(estilo);
+
+    songs.splice(0, songs.length, datos);
+    idx = 0;
+    page = 0;
+
+    if (!corregir) correctedLines = lines => lines;
+
+    document.body.classList.add('atril-on');
+    document.getElementById('prev').textContent = '← Página anterior';
+    document.getElementById('next').textContent = 'Página siguiente →';
+    render();
+  }
+
+  function actualizar() {
+    document.getElementById('cm-directo-volver').textContent =
+      '← Volver';
+
+    document.getElementById('cm-directo-favorito').textContent =
+      favs.includes(current) ? '♥ Favorita' : '♡ Favorito';
+
+    document.getElementById('cm-directo-celebracion').textContent =
+      cmGet().entries.some(x => x.song === current)
+        ? '✓ En celebración'
+        : '+ Celebración';
+  }
+
+  function abrir() {
+    const canto = songs[current];
+
+    if (!canto || !canto.body || canto.cmPdf) {
+      cerrar();
+      return;
+    }
+
+    if (panel && elegida === current) {
+      actualizar();
+      return;
+    }
+
+    cerrar();
+    elegida = current;
+    desplazamiento = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    panel = document.createElement('section');
+    panel.id = 'cm-atril-directo';
+    panel.style.cssText =
+      'position:fixed;inset:0;z-index:2147483600;' +
+      'background:#fff;display:flex;flex-direction:column;' +
+      'padding-top:env(safe-area-inset-top);' +
+      'padding-bottom:env(safe-area-inset-bottom)';
+
+    const barra = document.createElement('div');
+    barra.style.cssText =
+      'display:flex;flex-wrap:wrap;gap:6px;padding:8px;flex-shrink:0';
+
+    for (const [id, accion] of [
+      ['cm-directo-volver', () => {
+        current = -1;
+        render();
+      }],
+      ['cm-directo-favorito', () => toggle(current, 'fav')],
+      ['cm-directo-celebracion', () => toggle(current, 'cel')]
+    ]) {
+      const boton = document.createElement('button');
+      boton.id = id;
+      boton.className = 'action';
+      boton.onclick = accion;
+      barra.appendChild(boton);
+    }
+
+    const marco = document.createElement('iframe');
+    marco.title = 'Atril de ' + canto.title;
+    marco.style.cssText =
+      'display:block;width:100%;flex:1;min-height:0;border:0';
+
+    const datos = {
+      title: canto.title,
+      number: 1,
+      lines: canto.cmWordLines || preparar(canto)
+    };
+
+    marco.onload = () => {
+      if (!marco.isConnected) return;
+
+      try {
+        const doc = marco.contentDocument;
+        const script = doc.createElement('script');
+
+        script.textContent =
+          '(' + iniciar.toString() + ')(' +
+          JSON.stringify(datos) + ',' +
+          Boolean(canto.cmWordLines) + ');';
+
+        doc.body.appendChild(script);
+      } catch (error) {
+        cerrar();
+        alert(
+          'No se pudo abrir el atril. ' +
+          'La canción sigue disponible en su vista habitual.'
+        );
+      }
+    };
+
+    marco.src = 'Claret_Music_413_Atril_POSICIONES_CORREGIDAS.html';
+
+    panel.append(barra, marco);
+    document.body.appendChild(panel);
+    actualizar();
+  }
+
+  render = function () {
+    anterior();
+    if (current >= 0) abrir();
+    else cerrar();
+  };
+
+  if (current >= 0) abrir();
+})();
