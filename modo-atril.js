@@ -554,3 +554,53 @@ window.addEventListener('resize',()=>{if(current)draw();});
 
   if (current >= 0) abrir();
 })();
+/* Corregir los resultados PDF del buscador */
+(function () {
+  const retirado = 'Cancionero_Espiritu_Santo_Claret_Music_OK.pdf';
+  const listarAntes = renderList;
+  const abrirAntes = openSong;
+
+  renderList = function () {
+    listarAntes();
+
+    const lista = document.getElementById('list');
+    if (!lista) return;
+
+    lista.querySelectorAll('.song').forEach(fila => {
+      const boton = fila.querySelector('.open');
+      const coincidencia = boton?.getAttribute('onclick')
+        ?.match(/openSong\((\d+)\)/);
+
+      if (!coincidencia) return;
+
+      const canto = songs[Number(coincidencia[1])];
+      if (!canto?.cmPdf) return;
+
+      if (canto.cmPdf.file === retirado) {
+        fila.remove();
+        return;
+      }
+
+      const detalle = fila.querySelector('.muted');
+      if (detalle) {
+        detalle.textContent =
+          'Abrir PDF · Página ' + canto.cmPdf.page;
+      }
+    });
+
+    if (!lista.children.length) {
+      lista.textContent = 'No hay canciones en esta sección.';
+    }
+  };
+
+  openSong = function (i) {
+    const canto = songs[i];
+
+    if (canto?.cmPdf) {
+      cmOpenPdf(canto.cmPdf.file, canto.cmPdf.page, canto.title);
+      return;
+    }
+
+    abrirAntes(i);
+  };
+})();
