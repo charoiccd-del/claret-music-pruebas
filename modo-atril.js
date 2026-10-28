@@ -604,3 +604,52 @@ window.addEventListener('resize',()=>{if(current)draw();});
     abrirAntes(i);
   };
 })();
+/* Ordenar resultados e identificar el Cancionero Claretiano */
+(function () {
+  const listarAntes = renderList;
+
+  renderList = function () {
+    listarAntes();
+
+    const lista = document.getElementById('list');
+    if (!lista) return;
+
+    const filas = [...lista.querySelectorAll('.song')];
+
+    function obtenerCanto(fila) {
+      const boton = fila.querySelector('.open');
+      const numero = boton?.getAttribute('onclick')
+        ?.match(/openSong\((\d+)\)/);
+
+      return numero ? songs[Number(numero[1])] : null;
+    }
+
+    function orden(fila) {
+      const canto = obtenerCanto(fila);
+      if (!canto) return 9;
+      if (canto.cmWord) return 1;
+      if (!canto.cmPdf) return 0;
+      if (/hakuna/i.test(canto.title)) return 2;
+      return 3;
+    }
+
+    filas.forEach(fila => {
+      const canto = obtenerCanto(fila);
+      if (!canto || canto.cmWord || canto.cmPdf) return;
+
+      const boton = fila.querySelector('.open');
+      const detalle = boton.querySelector('.muted');
+
+      boton.replaceChildren(
+        document.createTextNode(
+          canto.title + ' · Cancionero Claretiano'
+        )
+      );
+
+      if (detalle) boton.appendChild(detalle);
+    });
+
+    filas.sort((a, b) => orden(a) - orden(b));
+    filas.forEach(fila => lista.appendChild(fila));
+  };
+})();
