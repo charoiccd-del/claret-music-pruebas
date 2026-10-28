@@ -562,7 +562,9 @@ window.addEventListener('resize',()=>{if(current)draw();});
   papel.parentNode.insertBefore(controles, papel);
   actualizarTono(0);
 }
-  function actualizar() {
+ window.cmIniciarAtril = iniciar;
+window.cmPrepararAtril = preparar;
+ function actualizar() {
     document.getElementById('cm-directo-volver').textContent =
       '← Volver';
 
@@ -821,3 +823,107 @@ cmUpdateSearch = function () {
       indice + ')">+ Añadir</button></div></div>';
   }).join('') || '<p>No se encontraron canciones.</p>';
 };
+/* Usar el atril corregido también en Celebración */
+(function () {
+  let panel = null;
+
+  window.cmAtrilClose = function () {
+    if (panel) panel.remove();
+    panel = null;
+    document.getElementById('cm-at-panel')?.remove();
+  };
+
+  window.cmAtrilOpen = function (indice = 0) {
+    const entradas = (cmReadonly?.entries || [])
+      .filter(entrada => songs[entrada.song]);
+
+    if (!entradas.length) return;
+
+    cmAtrilClose();
+
+    panel = document.createElement('section');
+    panel.style.cssText =
+      'position:fixed;inset:0;z-index:2147483600;' +
+      'background:white;display:flex;flex-direction:column;' +
+      'padding-top:env(safe-area-inset-top);' +
+      'padding-bottom:env(safe-area-inset-bottom)';
+
+    const barra = document.createElement('div');
+    barra.style.cssText =
+      'display:flex;gap:6px;padding:8px;align-items:center';
+
+    const salir = document.createElement('button');
+    salir.textContent = '✕ Salir';
+    salir.className = 'action';
+    salir.onclick = cmAtrilClose;
+
+    const selector = document.createElement('select');
+    selector.style.cssText =
+      'flex:1;min-width:0;padding:10px;font-size:16px';
+
+    entradas.forEach((entrada, i) => {
+      const opcion = document.createElement('option');
+      opcion.value = i;
+      opcion.textContent = entrada.moment + ' · ' +
+        songs[entrada.song].title.replace(/\s*\((PDF|Word)\)/gi, '');
+      selector.appendChild(opcion);
+    });
+
+    const contenido = document.createElement('div');
+    contenido.style.cssText =
+      'display:flex;flex:1;min-height:0;flex-direction:column';
+
+    function cargar() {
+      const canto = songs[entradas[Number(selector.value)].song];
+      contenido.replaceChildren();
+
+      if (canto.cmPdf) {
+        const boton = document.createElement('button');
+        boton.className = 'action';
+        boton.textContent = 'Abrir canción';
+        boton.onclick = () => cmOpenPdf(
+          canto.cmPdf.file, canto.cmPdf.page, canto.title
+        );
+        contenido.appendChild(boton);
+        return;
+      }
+
+      const marco = document.createElement('iframe');
+      marco.title = 'Atril de ' + canto.title;
+      marco.style.cssText =
+        'width:100%;flex:1;min-height:0;border:0';
+
+      marco.onload = function () {
+        if (!marco.isConnected) return;
+        const doc = marco.contentDocument;
+        const script = doc.createElement('script');
+        const datos = {
+          title: canto.title,
+          number: 1,
+          lines: canto.cmWordLines || cmPrepararAtril(canto)
+        };
+
+        script.textContent =
+          '(' + cmIniciarAtril.toString() + ')(' +
+          JSON.stringify(datos) + ',' +
+          Boolean(canto.cmWordLines) + ');';
+
+        doc.body.appendChild(script);
+      };
+
+      marco.src =
+        'Claret_Music_413_Atril_POSICIONES_CORREGIDAS.html';
+      contenido.appendChild(marco);
+    }
+
+    selector.value = Math.max(
+      0, Math.min(entradas.length - 1, Number(indice) || 0)
+    );
+    selector.onchange = cargar;
+
+    barra.append(salir, selector);
+    panel.append(barra, contenido);
+    document.body.appendChild(panel);
+    cargar();
+  };
+})();
