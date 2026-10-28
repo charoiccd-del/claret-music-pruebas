@@ -792,3 +792,32 @@ window.addEventListener('resize',()=>{if(current)draw();});
     });
   };
 })();
+/* Retirar Espíritu Santo PDF de la búsqueda de Celebración */
+cmUpdateSearch = function () {
+  const lista = document.getElementById('cm-results');
+  if (!lista) return;
+
+  const normalizar = texto => String(texto)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  const resultados = songs
+    .map((canto, indice) => ({ canto, indice }))
+    .filter(({ canto }) =>
+      canto.cmPdf?.file !==
+      'Cancionero_Espiritu_Santo_Claret_Music_OK.pdf'
+    )
+    .filter(({ canto }) =>
+      normalizar(canto.title).includes(normalizar(cmFilter))
+    )
+    .slice(0, cmFilter ? 40 : 10);
+
+  lista.innerHTML = resultados.map(({ canto, indice }) => {
+    const titulo = canto.title.replace(/\s*\((PDF|Word)\)/gi, '');
+    return '<div class="cm-item"><strong>' +
+      cmEscape(titulo) +
+      '</strong><div class="cm-actions"><button onclick="cmAdd(' +
+      indice + ')">+ Añadir</button></div></div>';
+  }).join('') || '<p>No se encontraron canciones.</p>';
+};
