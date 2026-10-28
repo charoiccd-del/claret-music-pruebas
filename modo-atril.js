@@ -432,22 +432,136 @@ window.addEventListener('resize',()=>{if(current)draw();});
   }
 
   function iniciar(datos, corregir) {
-    const estilo = document.createElement('style');
-    estilo.textContent = 'header,.note{display:none!important}';
-    document.head.appendChild(estilo);
+  const estilo = document.createElement('style');
+  estilo.textContent = 'header,.note{display:none!important}';
+  document.head.appendChild(estilo);
 
-    songs.splice(0, songs.length, datos);
-    idx = 0;
+  songs.splice(0, songs.length, datos);
+  idx = 0;
+  page = 0;
+  if (!corregir) correctedLines = lines => lines;
+
+  const posicionesOriginales = correctedLines;
+  let cambio = 0;
+
+  const notas = [
+    'DO','DO#','RE','RE#','MI','FA',
+    'FA#','SOL','SOL#','LA','LA#','SI'
+  ];
+  const ingles = [
+    'C','C#','D','D#','E','F',
+    'F#','G','G#','A','A#','B'
+  ];
+  const alturas = {
+    DO:0, RE:2, MI:4, FA:5, SOL:7, LA:9, SI:11,
+    C:0, D:2, E:4, F:5, G:7, A:9, B:11
+  };
+
+  function acorde(texto) {
+    return texto.split(/([/‐‒–—−-])/).map(parte => {
+      const m = parte.match(
+        /^(\(?)(SOL|DO|RE|MI|FA|LA|SI|[A-G])([#♯b♭]?)(.*)$/i
+      );
+      if (!m) return parte;
+
+      const sufijo = m[4];
+      if (!/^(?:(?:maj|min|sus|dim|aug|add|m|M)?\d*(?:[#b+]\d+)?(?:\(\d+(?:[,/#b+]\d+)*\))?|[º°+])\)?$/i.test(sufijo)) {
+        return parte;
+      }
+
+      const raiz = m[2].toUpperCase();
+      const alteracion = /[#♯]/.test(m[3])
+        ? 1 : /[b♭]/.test(m[3]) ? -1 : 0;
+      const numero =
+        ((alturas[raiz] + alteracion + cambio) % 12 + 12) % 12;
+
+      let nueva = (raiz.length === 1 ? ingles : notas)[numero];
+
+      if (m[2] === m[2].toLowerCase()) {
+        nueva = nueva.toLowerCase();
+      } else if (
+        m[2].length > 1 &&
+        m[2].slice(1) === m[2].slice(1).toLowerCase()
+      ) {
+        nueva = nueva[0] + nueva.slice(1).toLowerCase();
+      }
+
+      return m[1] + nueva + sufijo;
+    }).join('');
+  }
+
+  function transportar(linea) {
+    if (!cambio || !linea.red.some(Boolean)) return linea;
+
+    const caracteres = [], colores = [];
+    let finalAnterior = -1;
+
+    for (const m of linea.text.matchAll(/\S+/g)) {
+      const rojo = linea.red
+        .slice(m.index, m.index + m[0].length)
+        .every(Boolean);
+
+      const texto = rojo ? acorde(m[0]) : m[0];
+      const posicion = Math.max(m.index, finalAnterior + 1);
+
+      while (caracteres.length < posicion) {
+        caracteres.push(' ');
+        colores.push(0);
+      }
+
+      for (let j = 0; j < texto.length; j++) {
+        caracteres[posicion + j] = texto[j];
+        colores[posicion + j] =
+          rojo ? 1 : (linea.red[m.index + j] || 0);
+      }
+
+      finalAnterior = posicion + texto.length;
+    }
+
+    return {text: caracteres.join(''), red: colores};
+  }
+
+  correctedLines = lines =>
+    posicionesOriginales(lines).map(transportar);
+
+  document.body.classList.add('atril-on');
+  document.getElementById('prev').textContent = '← Página anterior';
+  document.getElementById('next').textContent = 'Página siguiente →';
+
+  const controles = document.createElement('div');
+  controles.style.cssText =
+    'display:flex;justify-content:center;align-items:center;' +
+    'gap:8px;flex-wrap:wrap;padding:6px;flex-shrink:0';
+
+  const estado = document.createElement('span');
+  estado.style.fontSize = '13px';
+
+  function actualizarTono(valor) {
+    cambio = valor;
     page = 0;
-
-    if (!corregir) correctedLines = lines => lines;
-
-    document.body.classList.add('atril-on');
-    document.getElementById('prev').textContent = '← Página anterior';
-    document.getElementById('next').textContent = 'Página siguiente →';
+    estado.textContent = cambio === 0
+      ? 'Tono original'
+      : (cambio > 0 ? '+' : '') + cambio + ' semitonos';
     render();
   }
 
+  for (const [nombre, accion] of [
+    ['−½ tono', () => actualizarTono(cambio - 1)],
+    ['Original', () => actualizarTono(0)],
+    ['+½ tono', () => actualizarTono(cambio + 1)]
+  ]) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.textContent = nombre;
+    boton.onclick = accion;
+    controles.appendChild(boton);
+  }
+
+  controles.appendChild(estado);
+  const papel = document.getElementById('paper');
+  papel.parentNode.insertBefore(controles, papel);
+  actualizarTono(0);
+}
   function actualizar() {
     document.getElementById('cm-directo-volver').textContent =
       '← Volver';
