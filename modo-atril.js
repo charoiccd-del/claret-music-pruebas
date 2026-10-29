@@ -851,7 +851,7 @@ cmUpdateSearch = function () {
 
     const barra = document.createElement('div');
     barra.style.cssText =
-      'display:flex;gap:6px;padding:8px;align-items:center';
+      'display:flex;gap:6px;padding:8px;align-items:center;flex-wrap:wrap';
 
     const salir = document.createElement('button');
     salir.textContent = '✕ Salir';
@@ -874,7 +874,23 @@ cmUpdateSearch = function () {
     contenido.style.cssText =
       'display:flex;flex:1;min-height:0;flex-direction:column';
 
+    const anteriorCanto = document.createElement('button');
+    const siguienteCanto = document.createElement('button');
+    anteriorCanto.textContent = '← Canto anterior';
+    siguienteCanto.textContent = 'Canto siguiente →';
+    anteriorCanto.className = siguienteCanto.className = 'action';
+    function cambiarCanto(paso) {
+      const destino = Number(selector.value) + paso;
+      if (destino < 0 || destino >= entradas.length) return;
+      selector.value = destino;
+      cargar();
+    }
+    anteriorCanto.onclick = () => cambiarCanto(-1);
+    siguienteCanto.onclick = () => cambiarCanto(1);
+
     function cargar() {
+      anteriorCanto.disabled = Number(selector.value) === 0;
+      siguienteCanto.disabled = Number(selector.value) === entradas.length - 1;
       const canto = songs[entradas[Number(selector.value)].song];
       contenido.replaceChildren();
 
@@ -911,6 +927,33 @@ cmUpdateSearch = function () {
           Boolean(canto.cmWordLines) + ');';
 
         doc.body.appendChild(script);
+        const enlazar = doc.createElement('script');
+        marco.contentWindow.cmOtroCanto = cambiarCanto;
+        marco.contentWindow.cmHayAnterior = Number(selector.value) > 0;
+        marco.contentWindow.cmHaySiguiente = Number(selector.value) < entradas.length - 1;
+        enlazar.textContent = `
+          (function () {
+            const dibujar = render;
+            render = function () {
+              dibujar();
+              if (window.cmHayAnterior) document.getElementById('prev').disabled = false;
+              if (window.cmHaySiguiente) document.getElementById('next').disabled = false;
+            };
+            const antes = document.getElementById('prev');
+            const despues = document.getElementById('next');
+            const paginaAnterior = antes.onclick;
+            const paginaSiguiente = despues.onclick;
+            antes.onclick = function () {
+              if (page === 0 && window.cmHayAnterior) window.cmOtroCanto(-1);
+              else { paginaAnterior(); render(); }
+            };
+            despues.onclick = function () {
+              if (page >= lastCount - 1 && window.cmHaySiguiente) window.cmOtroCanto(1);
+              else { paginaSiguiente(); render(); }
+            };
+            render();
+          })();`;
+        doc.body.appendChild(enlazar);
       };
 
       marco.src =
@@ -923,7 +966,7 @@ cmUpdateSearch = function () {
     );
     selector.onchange = cargar;
 
-    barra.append(salir, selector);
+    barra.append(salir, selector, anteriorCanto, siguienteCanto);
     panel.append(barra, contenido);
     document.body.appendChild(panel);
     cargar();
@@ -1120,4 +1163,145 @@ cmLibraryResults = function () {
     });
   };
   incorporar();
+})();
+
+/* PDF local para imprimir celebraciones desde el icono del iPad */
+(function () {
+  let ultimoPdf = null;
+  function hex(texto) {
+    const especiales = {'€':128,'‘':145,'’':146,'“':147,'”':148,'–':150,'—':151,'…':133};
+    return Array.from(String(texto).normalize('NFC')).map(c => {
+      const n = especiales[c] ?? (c.charCodeAt(0) <= 255 ? c.charCodeAt(0) : 63);
+      return n.toString(16).padStart(2, '0');
+    }).join('');
+  }
+  window.cmCelebracionPdf = function (evento) {
+    const paginas = [];
+    let comandos = [], y = 790;
+    function escribir(texto, x, alto, tamano = 10, rojo = false) {
+      comandos.push(`BT /F1 ${tamano} Tf ${rojo ? '0.72 0.08 0.12' : '0.1 0.1 0.1'} rg 1 0 0 1 ${x} ${alto} Tm <${hex(texto)}> Tj ET\n`);
+    }
+    function terminar() {
+      escribir('Claret Music · ' + (paginas.length + 1), 40, 25, 9);
+      paginas.push(comandos.join('')); comandos = []; y = 790;
+    }
+    function espacio(altura) { if (y - altura < 48) terminar(); }
+    function titulo(texto, tamano) {
+      const limite = Math.floor(515 / (tamano * 0.6));
+      const palabras = String(texto || '').split(/\s+/); let linea = '';
+      for (const palabra of palabras) {
+        if (linea && (linea + ' ' + palabra).length > limite) {
+          espacio(tamano + 7); escribir(linea, 40, y, tamano); y -= tamano + 7; linea = '';
+        }
+        linea += (linea ? ' ' : '') + palabra;
+      }
+      if (linea) { espacio(tamano + 7); escribir(linea, 40, y, tamano); y -= tamano + 7; }
+    }
+    titulo(evento.name || 'Celebración', 16);
+    titulo(evento.community || '', 11);
+    titulo(evento.date || '', 10);
+    y -= 8;
+    for (const entrada of evento.entries || []) {
+      const canto = songs[entrada.song]; if (!canto) continue;
+      espacio(90);
+      titulo(entrada.moment || '', 12);
+      titulo(canto.title.replace(/\s*\((PDF|Word)\)/gi, ''), 11);
+      let lineas = canto.cmWordLines || cmPrepararAtril(canto);
+      if (canto.cmWordLines && !canto.cmPrealigned) {
+        lineas = lineas.map((linea, i) => {
+          if (!linea.red.some(Boolean) || !lineas[i + 1] || lineas[i + 1].red.some(Boolean)) return linea;
+          const letras = [], rojo = [];
+          for (const m of linea.text.matchAll(/\S+/g)) {
+            const pos = Math.max(Math.round(m.index * 0.56), letras.length + (letras.length ? 1 : 0));
+            while (letras.length < pos) { letras.push(' '); rojo.push(0); }
+            letras.push(...m[0]); rojo.push(...Array(m[0].length).fill(1));
+          }
+          return {text: letras.join(''), red: rojo};
+        });
+      }
+      const grupos = [];
+      for (let i = 0; i < lineas.length; i++) {
+        const grupo = [lineas[i]];
+        if (lineas[i].red.some(Boolean) && lineas[i + 1] &&
+            !lineas[i + 1].red.some(Boolean) && lineas[i + 1].text.trim()) grupo.push(lineas[++i]);
+        grupos.push(grupo);
+      }
+      for (const grupo of grupos) {
+        const longitud = Math.max(...grupo.map(l => l.text.length), 1);
+        let inicio = 0;
+        while (inicio < longitud) {
+          let fin = Math.min(longitud, inicio + 85);
+          const seguro = p => grupo.every(l => !l.red[p - 1] || !l.red[p] || /\s/.test(l.text[p - 1] || '') || /\s/.test(l.text[p] || ''));
+          if (fin < longitud) {
+            const letra = grupo.find(l => !l.red.some(Boolean));
+            let corte = fin;
+            while (corte > inicio + 35 && (!seguro(corte) || (letra && !/\s/.test(letra.text[corte] || ' ')))) corte--;
+            if (corte > inicio + 35) fin = corte;
+            else while (fin > inicio + 1 && !seguro(fin)) fin--;
+          }
+          espacio(grupo.length * 14);
+          for (const linea of grupo) {
+            const texto = linea.text.slice(inicio, fin), rojos = linea.red.slice(inicio, fin);
+            for (let j = 0; j < texto.length;) {
+              const esRojo = Boolean(rojos[j]); let k = j + 1;
+              while (k < texto.length && Boolean(rojos[k]) === esRojo) k++;
+              escribir(texto.slice(j, k), 40 + j * 6, y, 10, esRojo); j = k;
+            }
+            y -= 14;
+          }
+          inicio = fin;
+        }
+      }
+      y -= 16;
+    }
+    terminar();
+    const objetos = ['', '<< /Type /Catalog /Pages 2 0 R >>', '',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>'];
+    const hijos = [];
+    for (const contenido of paginas) {
+      const id = objetos.length; hijos.push(`${id} 0 R`);
+      objetos.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${id + 1} 0 R >>`);
+      objetos.push(`<< /Length ${contenido.length} >>\nstream\n${contenido}endstream`);
+    }
+    objetos[2] = `<< /Type /Pages /Kids [${hijos.join(' ')}] /Count ${hijos.length} >>`;
+    let pdf = '%PDF-1.4\n'; const posiciones = [0];
+    for (let i = 1; i < objetos.length; i++) {
+      posiciones.push(pdf.length); pdf += `${i} 0 obj\n${objetos[i]}\nendobj\n`;
+    }
+    const tabla = pdf.length;
+    pdf += `xref\n0 ${objetos.length}\n0000000000 65535 f \n`;
+    for (const posicion of posiciones.slice(1)) pdf += String(posicion).padStart(10, '0') + ' 00000 n \n';
+    pdf += `trailer\n<< /Size ${objetos.length} /Root 1 0 R >>\nstartxref\n${tabla}\n%%EOF`;
+    return new Blob([pdf], {type:'application/pdf'});
+  };
+  window.cmImprimirCelebracion = function () {
+    const desdeIcono = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    if (!desdeIcono) { window.print(); return; }
+    const evento = cmReadonly || cmGet(); if (!evento) return;
+    const pdf = cmCelebracionPdf(evento);
+    const nombre = (evento.name || 'Celebracion').replace(/[^\p{L}\p{N}_ -]/gu, '').slice(0, 80) + '.pdf';
+    const archivo = new File([pdf], nombre, {type:'application/pdf'});
+    function abrir() {
+      if (ultimoPdf) URL.revokeObjectURL(ultimoPdf);
+      ultimoPdf = URL.createObjectURL(pdf);
+      document.getElementById('cm-pdf-local')?.remove();
+      const panel = document.createElement('div'); panel.id = 'cm-pdf-local'; panel.className = 'cm-panel';
+      const texto = document.createElement('p'); texto.textContent = 'PDF preparado. Ábrelo y usa Compartir para imprimirlo o guardarlo.';
+      const enlace = document.createElement('a'); enlace.href = ultimoPdf; enlace.target = '_blank';
+      enlace.textContent = 'Abrir PDF'; enlace.className = 'action';
+      panel.append(texto, enlace); document.querySelector('.cm-actions')?.after(panel);
+    }
+    if (navigator.canShare && navigator.canShare({files:[archivo]})) {
+      navigator.share({files:[archivo]}).catch(error => {if (error.name !== 'AbortError') abrir();});
+    } else abrir();
+  };
+  const antes = cmRenderRead;
+  cmRenderRead = function () {
+    antes();
+    document.querySelectorAll('.cm-actions button').forEach(boton => {
+      if (boton.getAttribute('onclick') === 'window.print()') {
+        boton.removeAttribute('onclick'); boton.onclick = cmImprimirCelebracion;
+      }
+    });
+  };
 })();
