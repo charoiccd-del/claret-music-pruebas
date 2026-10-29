@@ -115,3 +115,52 @@ cmLibraryResults = function () {
     lista.appendChild(fila);
   });
 };
+
+/* Escuchar la grabación desde la canción del cancionero. */
+(function () {
+  'use strict';
+  const audios = [{"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "El murmullo del río", "file": "ogalla_1_01.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "Mirando al margen", "file": "ogalla_1_02.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "Desde entonces", "file": "ogalla_1_03.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "La del canalla", "file": "ogalla_1_04.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "A oscuras", "file": "ogalla_1_05.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "Hoy", "file": "ogalla_1_06.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "Tan solo una mirada", "file": "ogalla_1_07.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "A voces", "file": "ogalla_1_08.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "Simplemente te quiero", "file": "ogalla_1_09.mp3"}, {"book": "A_voces_Manolo_Ogalla_CMF.pdf", "title": "Soneto de un viaje", "file": "ogalla_1_10.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Ven", "file": "ogalla_2_01.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Tú te empeñas", "file": "ogalla_2_02.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Aleluya", "file": "ogalla_2_03.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Mira mis manos", "file": "ogalla_2_04.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Santo de los pobres", "file": "ogalla_2_05.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Paz", "file": "ogalla_2_06.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Cada día algo más fiel", "file": "ogalla_2_07.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Al partir el pan", "file": "ogalla_2_08.mp3"}, {"book": "Yubal_Manolo_Ogalla_CMF.pdf", "title": "Ave María", "file": "ogalla_2_09.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Gloria de Resurrección", "file": "ogalla_3_01.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Ven Espíritu", "file": "ogalla_3_02.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Pasa la voz", "file": "ogalla_3_03.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Un derroche de perdón", "file": "ogalla_3_04.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Sólo tienes que soñar", "file": "ogalla_3_05.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Tu perdón", "file": "ogalla_3_06.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Oración de Claret", "file": "ogalla_3_07.mp3"}, {"book": "Pasa_la_Voz_Manolo_Ogalla_CMF.pdf", "title": "Es Navidad", "file": "ogalla_3_08.mp3"}];
+  const norm = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+  let player = null;
+  let box = null;
+  let track = '';
+  function stop() {
+    if (player) { player.pause(); player.removeAttribute('src'); player.load(); }
+    if (box) box.remove();
+    player = null; box = null; track = '';
+  }
+  const previous = render;
+  render = function () {
+    previous.apply(this, arguments);
+    const song = current >= 0 ? songs[current] : null;
+    const audio = song && song.cmOgalla && audios.find(a =>
+      a.book === song.cmOgallaFile && norm(a.title) === norm(song.cmOgallaTitle));
+    const panel = document.getElementById('cm-atril-directo');
+    if (!audio || !panel) { stop(); return; }
+    if (box && box.isConnected && track === audio.file) return;
+    stop();
+    track = audio.file;
+    box = document.createElement('div');
+    box.id = 'cm-ogalla-audio';
+    box.style.cssText = 'flex-shrink:0;padding:6px 12px;background:#fffaf5;border-bottom:1px solid #eaded4';
+    const label = document.createElement('div');
+    label.textContent = '🎧 Escuchar canción';
+    label.style.cssText = 'font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;color:#ad3e1c;margin-bottom:4px';
+    player = document.createElement('audio');
+    player.controls = true;
+    player.preload = 'none';
+    player.src = audio.file;
+    player.setAttribute('aria-label', 'Escuchar ' + song.cmOgallaTitle);
+    player.style.cssText = 'display:block;width:100%;max-width:600px;height:40px';
+    const error = document.createElement('p');
+    error.hidden = true;
+    error.textContent = 'No se pudo cargar el audio. Comprueba tu conexión y vuelve a abrir la canción.';
+    error.setAttribute('role', 'status');
+    player.addEventListener('error', () => { error.hidden = false; });
+    box.append(label, player, error);
+    const frame = panel.querySelector('iframe');
+    panel.insertBefore(box, frame);
+  };
+  window.addEventListener('pagehide', stop);
+})();
