@@ -876,25 +876,39 @@ cmUpdateSearch = function () {
 
     const anteriorCanto = document.createElement('button');
     const siguienteCanto = document.createElement('button');
-    anteriorCanto.textContent = '← Canto anterior';
-    siguienteCanto.textContent = 'Canto siguiente →';
+    anteriorCanto.textContent = '← Anterior';
+    siguienteCanto.textContent = 'Siguiente →';
     anteriorCanto.className = siguienteCanto.className = 'action';
+    const pie = document.createElement('footer');
+    pie.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px;flex-shrink:0';
+    anteriorCanto.style.flex = siguienteCanto.style.flex = '1';
+    const contador = document.createElement('span');
+    contador.style.cssText = 'font-size:12px;text-align:center';
+    pie.append(anteriorCanto, contador, siguienteCanto);
+    let pasarPagina = null, entrarAlFinal = false;
     function cambiarCanto(paso) {
       const destino = Number(selector.value) + paso;
       if (destino < 0 || destino >= entradas.length) return;
+      entrarAlFinal = paso < 0;
       selector.value = destino;
       cargar();
     }
-    anteriorCanto.onclick = () => cambiarCanto(-1);
-    siguienteCanto.onclick = () => cambiarCanto(1);
+    anteriorCanto.onclick = () => { if (pasarPagina) pasarPagina(-1); };
+    siguienteCanto.onclick = () => { if (pasarPagina) pasarPagina(1); };
 
     function cargar() {
-      anteriorCanto.disabled = Number(selector.value) === 0;
-      siguienteCanto.disabled = Number(selector.value) === entradas.length - 1;
+      pasarPagina = null;
+      anteriorCanto.disabled = siguienteCanto.disabled = true;
+      contador.textContent = 'Cargando…';
       const canto = songs[entradas[Number(selector.value)].song];
       contenido.replaceChildren();
 
       if (canto.cmPdf) {
+        entrarAlFinal = false;
+        pasarPagina = cambiarCanto;
+        anteriorCanto.disabled = Number(selector.value) === 0;
+        siguienteCanto.disabled = Number(selector.value) === entradas.length - 1;
+        contador.textContent = 'Canto ' + (Number(selector.value) + 1) + ' / ' + entradas.length;
         const boton = document.createElement('button');
         boton.className = 'action';
         boton.textContent = 'Abrir canción';
@@ -928,32 +942,39 @@ cmUpdateSearch = function () {
 
         doc.body.appendChild(script);
         const enlazar = doc.createElement('script');
+        const ocultarPie = doc.createElement('style');
+        ocultarPie.textContent = 'footer{display:none!important}';
+        doc.head.appendChild(ocultarPie);
         marco.contentWindow.cmOtroCanto = cambiarCanto;
-        marco.contentWindow.cmHayAnterior = Number(selector.value) > 0;
-        marco.contentWindow.cmHaySiguiente = Number(selector.value) < entradas.length - 1;
+        marco.contentWindow.cmEntrarAlFinal = entrarAlFinal;
+        entrarAlFinal = false;
+        marco.contentWindow.cmActualizarPaso = function (pagina, total) {
+          anteriorCanto.disabled = Number(selector.value) === 0 && pagina === 0;
+          siguienteCanto.disabled = Number(selector.value) === entradas.length - 1 && pagina >= total - 1;
+          contador.textContent = 'Canto ' + (Number(selector.value) + 1) + ' / ' + entradas.length +
+            ' · Página ' + (pagina + 1) + ' / ' + total;
+        };
         enlazar.textContent = `
           (function () {
             const dibujar = render;
             render = function () {
               dibujar();
-              if (window.cmHayAnterior) document.getElementById('prev').disabled = false;
-              if (window.cmHaySiguiente) document.getElementById('next').disabled = false;
+              window.cmActualizarPaso(page, lastCount);
             };
-            const antes = document.getElementById('prev');
-            const despues = document.getElementById('next');
-            const paginaAnterior = antes.onclick;
-            const paginaSiguiente = despues.onclick;
-            antes.onclick = function () {
-              if (page === 0 && window.cmHayAnterior) window.cmOtroCanto(-1);
-              else { paginaAnterior(); render(); }
-            };
-            despues.onclick = function () {
-              if (page >= lastCount - 1 && window.cmHaySiguiente) window.cmOtroCanto(1);
-              else { paginaSiguiente(); render(); }
+            window.cmPasarPagina = function (paso) {
+              if (paso > 0) {
+                if (page < lastCount - 1) { page++; render(); }
+                else window.cmOtroCanto(1);
+              } else {
+                if (page > 0) { page--; render(); }
+                else window.cmOtroCanto(-1);
+              }
             };
             render();
+            if (window.cmEntrarAlFinal) { page = lastCount - 1; render(); }
           })();`;
         doc.body.appendChild(enlazar);
+        pasarPagina = paso => marco.contentWindow.cmPasarPagina(paso);
       };
 
       marco.src =
@@ -964,10 +985,10 @@ cmUpdateSearch = function () {
     selector.value = Math.max(
       0, Math.min(entradas.length - 1, Number(indice) || 0)
     );
-    selector.onchange = cargar;
+    selector.onchange = () => { entrarAlFinal = false; cargar(); };
 
-    barra.append(salir, selector, anteriorCanto, siguienteCanto);
-    panel.append(barra, contenido);
+    barra.append(salir, selector);
+    panel.append(barra, contenido, pie);
     document.body.appendChild(panel);
     cargar();
   };
