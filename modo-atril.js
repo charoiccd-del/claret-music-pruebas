@@ -1336,3 +1336,22 @@ cmLibraryResults = function () {
     requestAnimationFrame(() => window.scrollTo(0, 0));
   };
 })();
+/* Explicar para qué sirve el modo atril */
+(function () {
+  const anterior = cmRenderRead;
+
+  cmRenderRead = function () {
+    anterior();
+
+    const boton = document.getElementById('cm-at-button');
+    if (!boton || document.getElementById('cm-atril-nota')) return;
+
+    const nota = document.createElement('p');
+    nota.id = 'cm-atril-nota';
+    nota.className = 'hint';
+    nota.textContent =
+      '🎸 ¿Tocas la guitarra? Abre el modo atril para ver los acordes y cambiar el tono de las canciones.';
+
+    boton.parentElement.after(nota);
+  };
+})();
