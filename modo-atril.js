@@ -1326,3 +1326,13 @@ cmLibraryResults = function () {
     });
   };
 })();
+/* Abrir la vista previa desde el principio */
+(function () {
+  const abrirAntes = cmOpenReadonly;
+
+  cmOpenReadonly = function () {
+    abrirAntes();
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => window.scrollTo(0, 0));
+  };
+})();
