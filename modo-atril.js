@@ -1349,6 +1349,8 @@ cmLibraryResults = function () {
     const nota = document.createElement('p');
     nota.id = 'cm-atril-nota';
     nota.className = 'hint';
+   nota.style.fontSize = '16px';
+nota.style.lineHeight = '1.5';
     nota.textContent =
       '🎸 ¿Tocas la guitarra? Abre el modo atril para ver los acordes y cambiar el tono de las canciones.';
 
